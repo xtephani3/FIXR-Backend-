@@ -8,6 +8,7 @@ import Admin from "../models/admin.model.js";
 
 import { verifyAccessByModel } from "../middlewares/verification.js";
 import { customerSignUp, customerLogin, customerLogout, adminSignUp, adminLogin, adminLogout, artisanSignUp, artisanLogin, artisanLogout } from "../controllers/auth.controller.js";
+import { getMe } from "../controllers/me.controller.js";
 import { upload } from "../utils/util.js";
 
 router.post("/customer-signup", customerSignUp)
@@ -21,6 +22,9 @@ router.post("/artisan-logout", verifyAccessByModel(Artisan), artisanLogout)
 router.post("/admin-signup", adminSignUp)
 router.post("/admin-login", adminLogin)
 router.post("/admin-logout", verifyAccessByModel(Admin), adminLogout)
+
+// Session hydration – returns the currently logged-in user (any role)
+router.get("/me", getMe)
 
 
 export default router;

@@ -38,7 +38,7 @@ export const customerSignUp = async (req, res) => {
         newCustomer.auth = auth._id;
         await newCustomer.save();
 
-        return res.status(201).json("Account created!")
+        return res.status(201).json("Account created!", newCustomer)
     } catch (err) {
         console.log("Error in customerSignUp function in auth.controller.js")
         return res.status(500).json({ message: "Error in signing up customer" } || "Server error")
@@ -55,7 +55,7 @@ export const customerLogout = async (req, res) => {
 }
 
 export const artisanSignUp = async (req, res) => {
-    console.log(req.files)
+    //console.log(req.files)
   
     const { firstName, lastName, phoneNumber, email, password, city, state, serviceRendered, serviceDescription } = req.body;
 
@@ -97,7 +97,7 @@ export const artisanSignUp = async (req, res) => {
         newArtisan.auth = auth._id;
         await newArtisan.save();
 
-        return res.status(201).json("Account created!")
+        return res.status(201).json("Account created!", newArtisan)
     } catch (err) {
         console.log("Error in artisanSignUp function in auth.controller.js", err.message)
         return res.status(500).json({ message: "Error in signing up artisan" } || "Server error")
@@ -147,7 +147,7 @@ export const adminSignUp = async (req, res) => {
         newAdmin.auth = auth._id;
         await newAdmin.save();
 
-        return res.status(201).json("Account created!")
+        return res.status(201).json("Account created!", newAdmin)
     } catch (err) {
         console.log("Error in adminSignUp function in auth.controller.js", err.message)
         return res.status(500).json({ message: "Error signing up admin" } || "Server error")

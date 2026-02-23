@@ -31,6 +31,25 @@ export const getArtisanById = async (req, res) => {
     }
 }
 
+export const updateArtisanStatus = async (req, res) => {
+    console.log(req.body)
+    const artisanId = req.body.id
+
+    if (!artisanId) {
+        return res.status(400).json({ message: "Provide artisan Id"});
+    }
+
+    try {
+        const artisan = await Artisan.findByIdAndUpdate(artisanId, {applicationStatus: "approved"}, {new: true})
+        if (!artisan) {
+            return res.status(400).json({ message: "Artisan Not Found!" });
+        }
+        return res.status(200).json(artisan)
+    } catch (error) {
+        console.log("Error in getArtisanById function in artisan.controller.js", error.message)
+        res.status(500).json({message: "Error fetching admin data"})
+    }
+}
 export const deleteArtisanById = async (req, res) => {
     let {artisanId} = req.body.id;
 

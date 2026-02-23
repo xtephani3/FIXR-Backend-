@@ -3,10 +3,26 @@ import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 dotenv.config()
 
+/**
+ * Safely extract a cookie value by name from the raw Cookie header string.
+ * Handles multiple cookies (e.g. "stored_token=xyz; _ga=abc") correctly.
+ * The previous `split("=")[1]` approach only worked when the token cookie
+ * was the sole cookie in the header — as soon as any other cookie exists
+ * (analytics, etc.) the split returns garbage and JWT verification fails.
+ */
+function parseCookie(cookieHeader, name) {
+    if (!cookieHeader) return null;
+    const match = cookieHeader
+        .split(";")
+        .map((c) => c.trim())
+        .find((c) => c.startsWith(`${name}=`));
+    return match ? match.slice(name.length + 1) : null;
+}
+
 export const verifyAccessByModel = (Model) => {
  
     return async (req, res, next) => {
-        const token = req.headers.cookie?.split("=")[1];
+        const token = parseCookie(req.headers.cookie, "stored_token");
 
         if (!token) {
             return res.status(401).json({ message: "Unauthorized" });
@@ -30,7 +46,8 @@ export const verifyAccessByModel = (Model) => {
 };
 
 export const verifyAccessByLogin = async (req, res, next) => {
-        const token = req.headers.cookie?.split("=")[1];
+   
+        const token = parseCookie(req.headers.cookie, "stored_token");
 
         if (!token) {
             return res.status(401).json({ message: "Login to proceed" });
@@ -51,5 +68,3 @@ export const verifyAccessByLogin = async (req, res, next) => {
             return res.status(401).json({ message: "Invalid token" });
         }
     }
-
-

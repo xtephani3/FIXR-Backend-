@@ -5,6 +5,9 @@ import path from "path";
 
 import Auth from "../models/auth.model.js";
 
+const env = process.env.NODE_ENV || "development";
+const isProduction = env === "production";
+
 export const hashPassword = (password) => {
     const hashedPassword = bcrypt.hashSync(password, 10)
     return hashedPassword;
@@ -38,18 +41,19 @@ export const handleLogin = (Model) => {
                 id: existingAccount.userId, email: existingAccount.email
             }, process.env.JWT_SECRET);
 
+
             res.cookie("stored_token", token, {
                 path: "/",
                 httpOnly: true,
-                secure: true,
-                sameSite: "none"
+                secure: isProduction,
+                sameSite: isProduction ? "none" : "lax"
             })
 
             const accountDetails = await Model.findById(existingAccount.userId);
             accountDetails.loggedIn = true;
             await accountDetails.save();
 
-            return res.status(200).json({ message: "Login successful" });
+            return res.status(200).json({ message: "Login successful", accountDetails});
         } catch (err) {
             console.log("Error in login function in auth.controller.js")
             return res.status(500).json({ message: "Error logging in user" })
@@ -89,25 +93,7 @@ const storage = multer.diskStorage({
     }
 })
 
-// const fileFilter = (req, file, cb) => {
-//     if (file.fieldname === 'cv') {
-//         if (file.mimetype !== 'application/pdf') {
-//             cb(new Error('CV must be in PDF format'), false)
-//         } else {
-//             cb(null, true);
-//         }
-//     }
-
-//     if (file.fieldname === "image") {
-//         if (file.mimetype.startsWith('image.')) {
-//             cb(null, true);
-//         } else {
-//             cb(new Error('Image must be an image file'), false);
-//         }
-//     }
-// }
 export const upload = multer({
     limits: { fileSize: 1 * 1024 * 1024 },
     storage: storage
-    // fileFilter
 })
