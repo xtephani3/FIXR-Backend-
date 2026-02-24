@@ -8,6 +8,6 @@ import { getAllCustomer, getCustomerById } from "../controllers/customer.control
 const router = express.Router();
 
 router.get("/", verifyAccessByModel(Admin), getAllCustomer)
-router.get("/customerId", verifyAccessByLogin, getCustomerById)
+router.get("/:id", verifyAccessByLogin, getCustomerById)
 
 export default router;
