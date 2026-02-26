@@ -19,11 +19,7 @@ conDB();
 const PORT = process.env.PORT;
 const app = express();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // app.use(helmet());
-
 app.use(cors({
   origin: [
     "http://localhost:5173",
@@ -34,6 +30,9 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 }));
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 app.use(express.json());
 app.use("/api/uploads", express.static(path.join(__dirname, "uploads")));
