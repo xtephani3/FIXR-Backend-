@@ -27,8 +27,8 @@ const __dirname = path.dirname(__filename);
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://lemon-field-085ef710f.4.azurestaticapps.net"
-    
+    "https://lemon-field-085ef710f.4.azurestaticapps.net",
+    "https://fixr-frontend-testing.onrender.com"
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
