@@ -1,6 +1,7 @@
 //import helmet from "helmet";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -20,11 +21,12 @@ const PORT = process.env.PORT;
 const app = express();
 
 // app.use(helmet());
+app.use(cookieParser());
 app.use(cors({
   origin: [
     "http://localhost:5173",
     "https://lemon-field-085ef710f.4.azurestaticapps.net",
-    "https://fixr-frontend-testing.onrender.com"
+    "https://fixr-frontend-testing.onrender.com/"
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
