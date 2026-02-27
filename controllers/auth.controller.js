@@ -2,16 +2,15 @@ import { hashPassword, handleLogin, handleLogout } from "../utils/util.js";
 import { OAuth2Client } from "google-auth-library";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { Resend } from "resend";
 import bcrypt from "bcryptjs";
 
 import Auth from "../models/auth.model.js";
 import Customer from "../models/customer.model.js";
 import Artisan from "../models/artisan.model.js";
 import Admin from "../models/admin.model.js";
+import sendEmail from "../utils/email.js";
 
 const isProduction = process.env.NODE_ENV === "production";
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const customerSignUp = async (req, res) => {
     const { firstName, lastName, phoneNumber, email, password } = req.body;
@@ -46,18 +45,11 @@ export const customerSignUp = async (req, res) => {
         newCustomer.auth = auth._id;
         await newCustomer.save();
 
-        if (process.env.RESEND_API_KEY) {
-            try {
-                await resend.emails.send({
-                    from: 'Fixr Welcome Team <onboarding@resend.dev>',
-                    to: [email],
-                    subject: 'Welcome to Fixr! 🎉',
-                    html: `<p>Hi ${firstName}! Thanks for joining Fixr. We are excited to help you fix things instead of replacing them!</p>`
-                });
-            } catch (e) {
-                console.error("Error sending welcome email", e);
-            }
-        }
+        await sendEmail({
+            to: email,
+            subject: 'Welcome to Fixr! 🎉',
+            html: `<p>Hi ${firstName}! Thanks for joining Fixr. We are excited to help you fix things instead of replacing them!</p>`
+        });
 
         return res.status(201).json("Account created!", newCustomer)
     } catch (err) {
@@ -118,18 +110,11 @@ export const artisanSignUp = async (req, res) => {
         newArtisan.auth = auth._id;
         await newArtisan.save();
 
-        if (process.env.RESEND_API_KEY) {
-            try {
-                await resend.emails.send({
-                    from: 'Fixr Artisan Team <artisans@resend.dev>',
-                    to: [email],
-                    subject: 'Welcome to Fixr Artisans! 🛠️',
-                    html: `<p>Hi ${firstName}! Thanks for joining the Fixr network. Your skills are an invaluable asset.</p>`
-                });
-            } catch (e) {
-                console.error("Error sending artisan welcome email", e);
-            }
-        }
+        await sendEmail({
+            to: email,
+            subject: 'Welcome to Fixr Artisans! 🛠️',
+            html: `<p>Hi ${firstName}! Thanks for joining the Fixr network. Your skills are an invaluable asset.</p>`
+        });
 
         return res.status(201).json("Account created!", newArtisan)
     } catch (err) {
@@ -323,18 +308,15 @@ export const forgotPassword = async (req, res) => {
         // Send email
         const resetUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password/${resetToken}?email=${encodeURIComponent(email)}`;
         
-         if (process.env.RESEND_API_KEY) {
-            await resend.emails.send({
-                from: 'Fixr Security <security@resend.dev>',
-                to: [email],
-                subject: 'Fixr Password Reset Request',
-                html: `
-                    <p>You requested a password reset. Please click the link below to set a new password:</p>
-                    <a href="${resetUrl}">${resetUrl}</a>
-                    <p>If you didn't request this, you can safely ignore this email.</p>
-                `
-            });
-         }
+         await sendEmail({
+             to: email,
+             subject: 'Fixr Password Reset Request',
+             html: `
+                 <p>You requested a password reset. Please click the link below to set a new password:</p>
+                 <a href="${resetUrl}">${resetUrl}</a>
+                 <p>If you didn't request this, you can safely ignore this email.</p>
+             `
+         });
 
         return res.status(200).json({ message: "If that email exists, a reset link has been sent." });
     } catch (err) {
