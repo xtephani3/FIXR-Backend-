@@ -15,6 +15,7 @@ import orderRoute from "./routes/order.route.js";
 import paymentRoute from "./routes/payment.route.js";
 import chatRoute from "./routes/chat.route.js";
 import aiRoute from "./routes/ai.route.js";
+import uploadRoute from "./routes/upload.route.js";
 
 dotenv.config();
 conDB();
@@ -57,6 +58,7 @@ app.use("/api/order", orderRoute)
 app.use("/api/payment", paymentRoute)
 app.use("/api/chat", chatRoute)
 app.use("/api/ai", aiRoute)
+app.use("/api/upload", uploadRoute)
 
 
 app.listen(PORT, "0.0.0.0", () => {
