@@ -72,8 +72,8 @@ export const handleLogout = (Model, accountId) => {
             res.clearCookie("stored_token", {
                 path: "/",
                 httpOnly: true,
-                secure: true,
-                sameSite: "none"
+                secure: isProduction,
+                sameSite: isProduction ? "none" : "lax"
             })
             return res.status(200).json({ message: "Logged out" });
         } catch (err) {

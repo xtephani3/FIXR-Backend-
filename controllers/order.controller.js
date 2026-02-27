@@ -1,21 +1,63 @@
 import Artisan from "../models/artisan.model.js";
 import Order from "../models/order.model.js";
+import fs from "fs";
+import path from "path";
+import { v2 as cloudinary } from "cloudinary";
 
 export const createOrderByCustomer = async (req, res) => {
     const customerId = req.user.id
 
-    const { artisanId, problem, location } = req.body;
+    const { artisanId, problem, location, images } = req.body;
 
     if (!artisanId || !problem || !location) {
         return res.status(400).json({ message: "Fill all fields" })
     }
 
     try {
+        let savedImages = [];
+        if (images && Array.isArray(images)) {
+            // Configure cloudinary just in time so it seamlessly ignores if keys aren't added yet
+            const useCloudinary = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+            if (useCloudinary) {
+                cloudinary.config({
+                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+                    api_key: process.env.CLOUDINARY_API_KEY,
+                    api_secret: process.env.CLOUDINARY_API_SECRET
+                });
+            }
+
+            for (let i = 0; i < images.length; i++) {
+                try {
+                    if (useCloudinary) {
+                        try {
+                            const uploadRes = await cloudinary.uploader.upload(images[i], { folder: "fixr_issues" });
+                            savedImages.push(uploadRes.secure_url);
+                            continue; // Successfully uploaded to cloud, skip local write
+                        } catch (cloudErr) {
+                            console.error("Cloudinary upload failed, falling back to local FS:", cloudErr);
+                        }
+                    }
+
+                    // Fallback to local File System if No Cloudinary or if Cloudinary failed
+                    const base64Data = images[i].replace(/^data:image\/\w+;base64,/, "");
+                    const extMatch = images[i].match(/^data:image\/(\w+);base64,/);
+                    const ext = extMatch ? extMatch[1] : 'jpg';
+                    const filename = `issue-${Date.now()}-${i}.${ext}`;
+                    const filepath = path.join(process.cwd(), 'uploads', filename);
+                    fs.writeFileSync(filepath, base64Data, 'base64');
+                    savedImages.push(filename);
+                } catch(e) {
+                    console.error("Error saving base64 image:", e);
+                }
+            }
+        }
+
         const newOrder = new Order({
             customerId,
             artisanId,
             problem,
-            location
+            location,
+            images: savedImages
         })
         await newOrder.save()
 

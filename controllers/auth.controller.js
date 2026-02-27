@@ -1,9 +1,17 @@
 import { hashPassword, handleLogin, handleLogout } from "../utils/util.js";
+import { OAuth2Client } from "google-auth-library";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { Resend } from "resend";
+import bcrypt from "bcryptjs";
 
 import Auth from "../models/auth.model.js";
 import Customer from "../models/customer.model.js";
 import Artisan from "../models/artisan.model.js";
 import Admin from "../models/admin.model.js";
+
+const isProduction = process.env.NODE_ENV === "production";
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const customerSignUp = async (req, res) => {
     const { firstName, lastName, phoneNumber, email, password } = req.body;
@@ -37,6 +45,19 @@ export const customerSignUp = async (req, res) => {
         //link auth details to corresponding user
         newCustomer.auth = auth._id;
         await newCustomer.save();
+
+        if (process.env.RESEND_API_KEY) {
+            try {
+                await resend.emails.send({
+                    from: 'Fixr Welcome Team <onboarding@resend.dev>',
+                    to: [email],
+                    subject: 'Welcome to Fixr! 🎉',
+                    html: `<p>Hi ${firstName}! Thanks for joining Fixr. We are excited to help you fix things instead of replacing them!</p>`
+                });
+            } catch (e) {
+                console.error("Error sending welcome email", e);
+            }
+        }
 
         return res.status(201).json("Account created!", newCustomer)
     } catch (err) {
@@ -96,6 +117,19 @@ export const artisanSignUp = async (req, res) => {
         //link auth details to corresponding user
         newArtisan.auth = auth._id;
         await newArtisan.save();
+
+        if (process.env.RESEND_API_KEY) {
+            try {
+                await resend.emails.send({
+                    from: 'Fixr Artisan Team <artisans@resend.dev>',
+                    to: [email],
+                    subject: 'Welcome to Fixr Artisans! 🛠️',
+                    html: `<p>Hi ${firstName}! Thanks for joining the Fixr network. Your skills are an invaluable asset.</p>`
+                });
+            } catch (e) {
+                console.error("Error sending artisan welcome email", e);
+            }
+        }
 
         return res.status(201).json("Account created!", newArtisan)
     } catch (err) {
@@ -162,3 +196,184 @@ export const adminLogout = async (req, res) => {
     const logout = handleLogout(Admin, adminId)
     logout(req, res)
 }
+
+export const googleLogin = async (req, res) => {
+    const { token, userModel } = req.body; // userModel should be "Customer" or "Artisan"
+    
+    if (!token) {
+        return res.status(400).json({ message: "Google token is required" });
+    }
+
+    try {
+        // Fetch user profile from Google using the access_token directly
+        const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+        client.setCredentials({ access_token: token });
+        
+        const oauth2Response = await client.request({
+            url: "https://www.googleapis.com/oauth2/v3/userinfo"
+        });
+        
+        const payload = oauth2Response.data;
+        const { sub: googleId, email, given_name: firstName, family_name: lastName } = payload;
+
+        let existingAccount = await Auth.findOne({ email });
+
+        if (!existingAccount) {
+            // New user registration flow via Google
+            if (!userModel || !["Customer", "Artisan"].includes(userModel)) {
+                return res.status(400).json({ message: "Valid userModel is required for Google signup" });
+            }
+
+            let newUserDetails;
+            if (userModel === "Customer") {
+                const newCustomer = new Customer({
+                    firstName: firstName || "",
+                    lastName: lastName || "",
+                    loggedIn: true
+                });
+                await newCustomer.save();
+                newUserDetails = newCustomer;
+            } else if (userModel === "Artisan") {
+                const newArtisan = new Artisan({
+                    firstName: firstName || "",
+                    lastName: lastName || "",
+                    loggedIn: true
+                });
+                await newArtisan.save();
+                newUserDetails = newArtisan;
+            }
+
+            // Create Auth document for Google OAuth
+            existingAccount = new Auth({
+                email,
+                userId: newUserDetails._id,
+                userModel,
+                authProvider: "google",
+                googleId
+            });
+            await existingAccount.save();
+
+            newUserDetails.auth = existingAccount._id;
+            await newUserDetails.save();
+        } else {
+            // For an existing user, update loggedIn status to true
+            try {
+               let AccountModel;
+               if (existingAccount.userModel === "Customer") AccountModel = Customer;
+               if (existingAccount.userModel === "Artisan") AccountModel = Artisan;
+               if (existingAccount.userModel === "Admin") AccountModel = Admin;
+
+               if (AccountModel) {
+                   const accountDetails = await AccountModel.findById(existingAccount.userId);
+                   if (accountDetails) {
+                       accountDetails.loggedIn = true;
+                       await accountDetails.save();
+                   }
+               }
+            } catch (err) {
+                console.log("Error updating loggedin status:", err);
+            }
+        }
+
+        const sessionToken = jwt.sign({
+            id: existingAccount.userId, email: existingAccount.email
+        }, process.env.JWT_SECRET);
+
+        res.cookie("stored_token", sessionToken, {
+            path: "/",
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax"
+        });
+
+        let FinalModel;
+        if (existingAccount.userModel === "Customer") FinalModel = Customer;
+        else if (existingAccount.userModel === "Artisan") FinalModel = Artisan;
+        else FinalModel = Admin;
+
+        const returnedAccountDetails = await FinalModel.findById(existingAccount.userId);
+
+        return res.status(200).json({ message: "Login successful", accountDetails: returnedAccountDetails });
+
+    } catch (err) {
+        console.error("Error in googleLogin:", err);
+        return res.status(500).json({ message: "Error authenticating with Google", error: err.message, stack: err.stack });
+    }
+};
+
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required" });
+
+    try {
+        const auth = await Auth.findOne({ email });
+        if (!auth) {
+            // Return 200 anyway so we don't leak user emails, standard security practice
+            return res.status(200).json({ message: "If that email exists, a reset link has been sent." });
+        }
+
+        // Generate token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const hash = await bcrypt.hash(resetToken, 10);
+
+        auth.resetPasswordToken = hash;
+        auth.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+        await auth.save();
+
+        // Send email
+        const resetUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password/${resetToken}?email=${encodeURIComponent(email)}`;
+        
+         if (process.env.RESEND_API_KEY) {
+            await resend.emails.send({
+                from: 'Fixr Security <security@resend.dev>',
+                to: [email],
+                subject: 'Fixr Password Reset Request',
+                html: `
+                    <p>You requested a password reset. Please click the link below to set a new password:</p>
+                    <a href="${resetUrl}">${resetUrl}</a>
+                    <p>If you didn't request this, you can safely ignore this email.</p>
+                `
+            });
+         }
+
+        return res.status(200).json({ message: "If that email exists, a reset link has been sent." });
+    } catch (err) {
+        console.error("Error in forgotPassword:", err);
+        return res.status(500).json({ message: "Error processing forgot password request" });
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    const { token } = req.params;
+    const { email, newPassword } = req.body;
+
+    if (!token || !email || !newPassword) {
+        return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    try {
+        const auth = await Auth.findOne({ 
+            email, 
+            resetPasswordExpires: { $gt: Date.now() } 
+        });
+
+        if (!auth || !auth.resetPasswordToken) {
+            return res.status(400).json({ message: "Invalid or expired reset token" });
+        }
+
+        const isValid = await bcrypt.compare(token, auth.resetPasswordToken);
+        if (!isValid) {
+            return res.status(400).json({ message: "Invalid or expired reset token" });
+        }
+
+        auth.password = hashPassword(newPassword);
+        auth.resetPasswordToken = undefined;
+        auth.resetPasswordExpires = undefined;
+        await auth.save();
+
+        return res.status(200).json({ message: "Password has been successfully reset" });
+    } catch (err) {
+        console.error("Error in resetPassword:", err);
+        return res.status(500).json({ message: "Error resetting password" });
+    }
+};

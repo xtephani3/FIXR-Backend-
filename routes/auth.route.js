@@ -7,7 +7,7 @@ import Artisan from "../models/artisan.model.js";
 import Admin from "../models/admin.model.js";
 
 import { verifyAccessByModel } from "../middlewares/verification.js";
-import { customerSignUp, customerLogin, customerLogout, adminSignUp, adminLogin, adminLogout, artisanSignUp, artisanLogin, artisanLogout } from "../controllers/auth.controller.js";
+import { customerSignUp, customerLogin, customerLogout, adminSignUp, adminLogin, adminLogout, artisanSignUp, artisanLogin, artisanLogout, googleLogin, forgotPassword, resetPassword } from "../controllers/auth.controller.js";
 import { getMe } from "../controllers/me.controller.js";
 import { upload } from "../utils/util.js";
 
@@ -26,5 +26,8 @@ router.post("/admin-logout", verifyAccessByModel(Admin), adminLogout)
 // Session hydration – returns the currently logged-in user (any role)
 router.get("/me", getMe)
 
+router.post("/google-login", googleLogin)
+router.post("/forgot-password", forgotPassword)
+router.put("/reset-password/:token", resetPassword)
 
 export default router;

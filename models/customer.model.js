@@ -6,16 +6,13 @@ const customerSchema = new mongoose.Schema({
         ref: "Auth"
     },
     firstName: {
-        type: String,
-        required: true
+        type: String
     },
     lastName: {
-        type: String,
-        required: true
+        type: String
     },
     phoneNumber: {
-        type: String,
-        required: true
+        type: String
     },
     loggedIn: {
         type: Boolean,

@@ -33,6 +33,7 @@ const orderSchema = new mongoose.Schema({
         postImg: String,
         note: String
     },
+    images: [{ type: String }],
     review: {
         customerId: {
             type: mongoose.Schema.Types.ObjectId,
