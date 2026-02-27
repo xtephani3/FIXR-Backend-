@@ -53,7 +53,7 @@ export const createOrderByCustomer = async (req, res) => {
 export const getOrderByCustomerId = async (req, res) => {
     const customerId = req.user.id
     try {
-        let orders = await Order.find({ customerId }).populate("artisanId")
+        let orders = await Order.find({ customerId }).sort({ createdAt: -1 }).populate("artisanId")
         return res.status(200).json(orders)
     } catch (err) {
         console.log("Error in getOrderByCustomerId  function in order.controller.js", err.message)
@@ -64,7 +64,7 @@ export const getOrderByCustomerId = async (req, res) => {
 export const getOrderByArtisanId = async (req, res) => {
     const artisanId = req.user.id
     try {
-        let orders = await Order.find({ artisanId }).populate("customerId")
+        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId")
         return res.status(200).json(orders)
     } catch (err) {
         console.log("Error in getOrderByArtisanId function in order.controller.js", err.message)
