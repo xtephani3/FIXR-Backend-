@@ -176,11 +176,13 @@ export const googleLogin = async (req, res) => {
 
     try {
         const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-        const ticket = await client.verifyIdToken({
-            idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID,
+        client.setCredentials({ access_token: token });
+        
+        const oauth2Response = await client.request({
+            url: "https://www.googleapis.com/oauth2/v3/userinfo"
         });
-        const payload = ticket.getPayload();
+        
+        const payload = oauth2Response.data;
         const { sub: googleId, email, given_name: firstName, family_name: lastName } = payload;
 
         let existingAccount = await Auth.findOne({ email });
