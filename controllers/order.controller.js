@@ -3,6 +3,7 @@ import Order from "../models/order.model.js";
 import fs from "fs";
 import path from "path";
 import { v2 as cloudinary } from "cloudinary";
+import sendEmail from "../utils/email.js";
 
 export const createOrderByCustomer = async (req, res) => {
     const customerId = req.user.id
@@ -16,40 +17,8 @@ export const createOrderByCustomer = async (req, res) => {
     try {
         let savedImages = [];
         if (images && Array.isArray(images)) {
-            // Configure cloudinary just in time so it seamlessly ignores if keys aren't added yet
-            const useCloudinary = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
-            if (useCloudinary) {
-                cloudinary.config({
-                    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-                    api_key: process.env.CLOUDINARY_API_KEY,
-                    api_secret: process.env.CLOUDINARY_API_SECRET
-                });
-            }
-
-            for (let i = 0; i < images.length; i++) {
-                try {
-                    if (useCloudinary) {
-                        try {
-                            const uploadRes = await cloudinary.uploader.upload(images[i], { folder: "fixr_issues" });
-                            savedImages.push(uploadRes.secure_url);
-                            continue; // Successfully uploaded to cloud, skip local write
-                        } catch (cloudErr) {
-                            console.error("Cloudinary upload failed, falling back to local FS:", cloudErr);
-                        }
-                    }
-
-                    // Fallback to local File System if No Cloudinary or if Cloudinary failed
-                    const base64Data = images[i].replace(/^data:image\/\w+;base64,/, "");
-                    const extMatch = images[i].match(/^data:image\/(\w+);base64,/);
-                    const ext = extMatch ? extMatch[1] : 'jpg';
-                    const filename = `issue-${Date.now()}-${i}.${ext}`;
-                    const filepath = path.join(process.cwd(), 'uploads', filename);
-                    fs.writeFileSync(filepath, base64Data, 'base64');
-                    savedImages.push(filename);
-                } catch(e) {
-                    console.error("Error saving base64 image:", e);
-                }
-            }
+            // Azure URLs are already pre-uploaded through Booking pipeline and provided straight in `images`
+            savedImages = images;
         }
 
         const newOrder = new Order({
@@ -61,6 +30,19 @@ export const createOrderByCustomer = async (req, res) => {
         })
         await newOrder.save()
 
+        try {
+            const artisan = await Artisan.findById(artisanId).populate("auth");
+            if (artisan && artisan.auth && artisan.auth.email) {
+                 await sendEmail({
+                    to: artisan.auth.email,
+                    subject: "You have a new booking on Fixr!",
+                    text: `Hello ${artisan.firstName},\n\nYou have just received a new repair booking on Fixr for the following job in ${location}:\n\n${problem}\n\nPlease log in to your dashboard to review and quote the repair to begin.`
+                });
+            }
+        } catch (mailErr) {
+            console.error("Error sending booking notification email to artisan", mailErr);
+        }
+
         return res.status(201).json("Order created!")
     } catch (err) {
         console.log("Error in createOrderByCustomer function in order.controller.js", err.message)
@@ -71,7 +53,7 @@ export const createOrderByCustomer = async (req, res) => {
 export const getOrderByCustomerId = async (req, res) => {
     const customerId = req.user.id
     try {
-        let orders = await Order.find({ customerId }).populate("artisanId")
+        let orders = await Order.find({ customerId }).sort({ createdAt: -1 }).populate("artisanId")
         return res.status(200).json(orders)
     } catch (err) {
         console.log("Error in getOrderByCustomerId  function in order.controller.js", err.message)
@@ -82,7 +64,7 @@ export const getOrderByCustomerId = async (req, res) => {
 export const getOrderByArtisanId = async (req, res) => {
     const artisanId = req.user.id
     try {
-        let orders = await Order.find({ artisanId }).populate("customerId")
+        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId")
         return res.status(200).json(orders)
     } catch (err) {
         console.log("Error in getOrderByArtisanId function in order.controller.js", err.message)
