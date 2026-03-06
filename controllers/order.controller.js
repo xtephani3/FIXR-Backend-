@@ -211,11 +211,12 @@ export const updateOrderPaymentStatus = async (req, res) => {
         order.paymentStatus = "paid";
         await order.save();
 
-        // Send email receipt to customer
+        // Send email receipt to customer + notify admin
         try {
             const customer = await Customer.findById(order.customerId).populate("auth");
             const artisan = await Artisan.findById(order.artisanId);
             const artisanName = artisan ? `${artisan.firstName} ${artisan.lastName}` : "Your artisan";
+            const customerName = customer ? `${customer.firstName} ${customer.lastName}` : "Unknown";
 
             if (customer?.auth?.email) {
                 await sendEmail({
@@ -226,6 +227,29 @@ export const updateOrderPaymentStatus = async (req, res) => {
                            <p>Repair: <em>${order.problem}</em></p>
                            <p>Thank you for using Fixr!</p>
                            <p>— The Fixr Team</p>`
+                });
+            }
+
+            // Notify admin
+            const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+            if (adminEmail) {
+                await sendEmail({
+                    to: adminEmail,
+                    subject: `💰 Cash Payment Confirmed — ₦${Number(order.repairFee || 0).toLocaleString()}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                            <h2 style="color: #166534;">Payment Notification</h2>
+                            <p>A cash payment has been confirmed on Fixr.</p>
+                            <div style="background-color: #F0FDF4; border: 1px solid #DCFCE7; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                                <p style="margin: 4px 0;"><strong>Customer:</strong> ${customerName}</p>
+                                <p style="margin: 4px 0;"><strong>Artisan:</strong> ${artisanName}</p>
+                                <p style="margin: 4px 0;"><strong>Amount:</strong> ₦${Number(order.repairFee || 0).toLocaleString()}</p>
+                                <p style="margin: 4px 0;"><strong>Method:</strong> Cash</p>
+                                <p style="margin: 4px 0;"><strong>Order ID:</strong> ${orderId}</p>
+                            </div>
+                            <p style="font-size: 14px; color: #64748B;">— Fixr System</p>
+                        </div>
+                    `
                 });
             }
         } catch (mailErr) {

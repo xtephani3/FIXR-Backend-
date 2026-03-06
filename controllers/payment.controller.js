@@ -1,8 +1,38 @@
 import Auth from "../models/auth.model.js";
 import Customer from "../models/customer.model.js";
+import Artisan from "../models/artisan.model.js";
 import Payment from "../models/payment.model.js";
 import Order from "../models/order.model.js";
+import sendEmail from "../utils/email.js";
 
+// Reusable helper to notify admin of a payment
+const notifyAdminPayment = async ({ customerName, artisanName, amount, method, orderId }) => {
+    const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+    if (!adminEmail) return;
+
+    try {
+        await sendEmail({
+            to: adminEmail,
+            subject: `💰 Payment Received — ₦${Number(amount || 0).toLocaleString()} (${method})`,
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                    <h2 style="color: #166534;">Payment Notification</h2>
+                    <p>A payment has been ${method === "Cash" ? "confirmed" : "received"} on Fixr.</p>
+                    <div style="background-color: #F0FDF4; border: 1px solid #DCFCE7; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                        <p style="margin: 4px 0;"><strong>Customer:</strong> ${customerName}</p>
+                        <p style="margin: 4px 0;"><strong>Artisan:</strong> ${artisanName}</p>
+                        <p style="margin: 4px 0;"><strong>Amount:</strong> ₦${Number(amount || 0).toLocaleString()}</p>
+                        <p style="margin: 4px 0;"><strong>Method:</strong> ${method}</p>
+                        <p style="margin: 4px 0;"><strong>Order ID:</strong> ${orderId}</p>
+                    </div>
+                    <p style="font-size: 14px; color: #64748B;">— Fixr System</p>
+                </div>
+            `
+        });
+    } catch (err) {
+        console.error("Error notifying admin of payment:", err);
+    }
+};
 
 export const getCustomerPaymentHistory = async (req, res) => {
   const customerId = req.user.id;
@@ -139,7 +169,26 @@ export const verifyCustomerPayment = async (req, res) => {
     const order = await Order.findById(orderId)
     order.paymentStatus = paymentValid && "paid";
     await order.save();
-    
+
+    // Notify admin of successful Flutterwave payment
+    if (paymentValid) {
+        try {
+            const customer = await Customer.findById(payment.customerId);
+            const artisan = await Artisan.findById(payment.artisanId);
+            const customerName = customer ? `${customer.firstName} ${customer.lastName}` : "Unknown";
+            const artisanName = artisan ? `${artisan.firstName} ${artisan.lastName}` : "Unknown";
+            await notifyAdminPayment({
+                customerName,
+                artisanName,
+                amount: payment.amount,
+                method: "Flutterwave",
+                orderId: orderId
+            });
+        } catch (notifyErr) {
+            console.error("Error notifying admin of Flutterwave payment:", notifyErr);
+        }
+    }
+
     return res.status(200).json(order)
   } catch (err) {
     console.log("Error in verifyCustomerPayment function in payment controller.js", err.message)
