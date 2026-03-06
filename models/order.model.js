@@ -39,10 +39,16 @@ const orderSchema = new mongoose.Schema({
             type: mongoose.Schema.Types.ObjectId,
             ref: "Customer"
         },
-        comment: {String},
+        comment: String,
         rating: {
             type: Number,
             max: 5
+        },
+        tags: [String],
+        photos: [String],
+        createdAt: {
+            type: Date,
+            default: Date.now
         }
     },
 
