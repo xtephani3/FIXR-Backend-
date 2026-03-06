@@ -186,3 +186,55 @@ export const updateOrderRepairReport = async (req, res) => {
         return res.status(500).json({ message: "Error adding repair report to order" })
     }
 }
+
+export const updateOrderPaymentStatus = async (req, res) => {
+    const { orderId } = req.params;
+    const artisanId = req.user.id;
+
+    try {
+        const order = await Order.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        // Ensure the artisan owns this order
+        if (order.artisanId.toString() !== artisanId) {
+            return res.status(403).json({ message: "You can only update payment for your own orders" });
+        }
+
+        // Prevent double-confirming
+        if (order.paymentStatus === "paid") {
+            return res.status(400).json({ message: "Payment has already been confirmed for this order" });
+        }
+
+        order.paymentStatus = "paid";
+        await order.save();
+
+        // Send email receipt to customer
+        try {
+            const customer = await Customer.findById(order.customerId).populate("auth");
+            const artisan = await Artisan.findById(order.artisanId);
+            const artisanName = artisan ? `${artisan.firstName} ${artisan.lastName}` : "Your artisan";
+
+            if (customer?.auth?.email) {
+                await sendEmail({
+                    to: customer.auth.email,
+                    subject: "Payment confirmed for your Fixr repair",
+                    html: `<p>Hi ${customer.firstName},</p>
+                           <p>Your cash payment of <strong>₦${Number(order.repairFee || 0).toLocaleString()}</strong> has been confirmed by <strong>${artisanName}</strong>.</p>
+                           <p>Repair: <em>${order.problem}</em></p>
+                           <p>Thank you for using Fixr!</p>
+                           <p>— The Fixr Team</p>`
+                });
+            }
+        } catch (mailErr) {
+            console.error("Error sending payment confirmation email", mailErr);
+        }
+
+        return res.status(200).json(order);
+    } catch (err) {
+        console.log("Error in updateOrderPaymentStatus function in order.controller.js", err.message);
+        return res.status(500).json({ message: "Error confirming payment" });
+    }
+}
