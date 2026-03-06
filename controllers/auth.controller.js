@@ -112,8 +112,49 @@ export const artisanSignUp = async (req, res) => {
 
         await sendEmail({
             to: email,
-            subject: 'Welcome to Fixr Artisans! 🛠️',
-            html: `<p>Hi ${firstName}! Thanks for joining the Fixr network. Your skills are an invaluable asset.</p>`
+            subject: 'Welcome to the Fixr Family! | Let\'s get you started 🛠️',
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                    <h2 style="color: #166534;">Hi ${firstName},</h2>
+
+                    <p>Welcome to <strong>Fixr</strong>! We are thrilled to have you join our community of skilled professionals. Our mission is to connect your expertise with customers who need your services, helping you grow your business and manage your bookings seamlessly.</p>
+
+                    <h3 style="color: #166534;">🚀 Getting Started</h3>
+                    <p>Your profile is now live! Customers in your area can browse your services, view your portfolio, and book you for jobs.</p>
+
+                    <h3 style="color: #166534;">💳 Payment Options</h3>
+                    <p>We've made it easy for you to get paid. Your customers have two ways to settle their bills:</p>
+                    <ul>
+                        <li><strong>Flutterwave:</strong> Secure, instant online payments.</li>
+                        <li><strong>Cash:</strong> For customers who prefer to pay you directly in person.</li>
+                    </ul>
+
+                    <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; border-radius: 8px; margin: 20px 0;">
+                        <h4 style="color: #92400E; margin-top: 0;">⚠️ Important: Reconciliation Fee</h4>
+                        <p style="margin-bottom: 8px;">To keep the platform running and continue bringing you new leads, a small service fee (reconciliation fee) is charged on every successful booking.</p>
+                        <p style="margin-bottom: 8px;">If a customer pays via <strong>Flutterwave</strong>, this fee is automatically handled. However, if a customer pays you in <strong>cash</strong>, you are required to manually remit the reconciliation fee to the following account:</p>
+                        <div style="background-color: white; padding: 12px; border-radius: 6px; margin: 12px 0;">
+                            <p style="margin: 4px 0;"><strong>Bank Name:</strong> First Bank of Nigeria</p>
+                            <p style="margin: 4px 0;"><strong>Account Name:</strong> Fixr Technologies Ltd</p>
+                            <p style="margin: 4px 0;"><strong>Account Number:</strong> 0123456789</p>
+                        </div>
+                        <p style="font-size: 14px; color: #92400E;">Please include your <strong>Booking ID</strong> or <strong>Registered Phone Number</strong> in the payment description to ensure your account remains in good standing.</p>
+                    </div>
+
+                    <h3 style="color: #166534;">💡 Pro Tips for Success</h3>
+                    <ul>
+                        <li><strong>Keep your profile updated:</strong> High-quality photos of your work attract 3x more customers.</li>
+                        <li><strong>Respond quickly:</strong> Fast responses lead to higher ratings and more bookings.</li>
+                        <li><strong>Confirm payments:</strong> Always mark a job as "Paid" in the app once you receive cash.</li>
+                    </ul>
+
+                    <p>If you have any questions, simply reply to this email or visit our Help Center in the app.</p>
+
+                    <p>We can't wait to see your business thrive!</p>
+
+                    <p style="margin-top: 24px;">Best regards,<br/><strong>The Fixr Team</strong></p>
+                </div>
+            `
         });
 
         return res.status(201).json("Account created!", newArtisan)
