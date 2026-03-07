@@ -47,6 +47,12 @@ const artisanSchema = new mongoose.Schema({
         rating: {
             type: Number,
             max: 5
+        },
+        tags: [String],
+        photos: [String],
+        createdAt: {
+            type: Date,
+            default: Date.now
         }
     }],
     loggedIn: {

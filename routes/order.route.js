@@ -4,7 +4,7 @@ import Customer from "../models/customer.model.js";
 import Artisan from "../models/artisan.model.js";
 
 import { verifyAccessByModel } from "../middlewares/verification.js";
-import { createOrderByCustomer, getOrderByCustomerId, getOrderByArtisanId, updateOrderReview, updateOrderRepairStatus, updateOrderRepairFee, updateOrderRepairReport } from "../controllers/order.controller.js";
+import { createOrderByCustomer, getOrderByCustomerId, getOrderByArtisanId, updateOrderReview, updateOrderRepairStatus, updateOrderRepairFee, updateOrderRepairReport, updateOrderPaymentStatus } from "../controllers/order.controller.js";
 
 const router = express.Router();
 
@@ -15,5 +15,6 @@ router.patch("/:orderId/review", verifyAccessByModel(Customer), updateOrderRevie
 router.patch("/:orderId/repair-status", verifyAccessByModel(Artisan), updateOrderRepairStatus)
 router.patch("/:orderId/repair-fee", verifyAccessByModel(Artisan), updateOrderRepairFee)
 router.patch("/:orderId/report", verifyAccessByModel(Artisan), updateOrderRepairReport)
+router.patch("/:orderId/payment-status", verifyAccessByModel(Artisan), updateOrderPaymentStatus)
 
 export default router;

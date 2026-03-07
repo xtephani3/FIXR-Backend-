@@ -1,5 +1,7 @@
 import Artisan from "../models/artisan.model.js";
+import Customer from "../models/customer.model.js";
 import Order from "../models/order.model.js";
+import Reconciliation from "../models/reconciliation.model.js";
 import fs from "fs";
 import path from "path";
 import { v2 as cloudinary } from "cloudinary";
@@ -64,7 +66,17 @@ export const getOrderByCustomerId = async (req, res) => {
 export const getOrderByArtisanId = async (req, res) => {
     const artisanId = req.user.id
     try {
-        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId")
+        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId").lean()
+        const reconciliations = await Reconciliation.find({ artisanId }).lean();
+        
+        orders = orders.map(order => {
+            const rec = reconciliations.find(r => r.orderId.toString() === order._id.toString());
+            if (rec) {
+                order.reconciliation = rec;
+            }
+            return order;
+        });
+        
         return res.status(200).json(orders)
     } catch (err) {
         console.log("Error in getOrderByArtisanId function in order.controller.js", err.message)
@@ -75,28 +87,87 @@ export const getOrderByArtisanId = async (req, res) => {
 export const updateOrderReview = async (req, res) => {
     const customerId = req.user.id;
     const { orderId } = req.params;
-    const { comment, rating } = req.body
+    const { comment, rating, tags, photos } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating is required and must be between 1 and 5" });
+    }
+
     try {
-        let order = await Order.findByIdAndUpdate(orderId, { review: { customerId, comment, rating } }, { new: true })
+        const order = await Order.findById(orderId);
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
 
-        const artisan = await Artisan.findByIdAndUpdate(order.artisanId, { $push: { reviews: { customerId, comment, rating } } }, { new: true });
+        // Prevent duplicate reviews
+        if (order.review && order.review.rating) {
+            return res.status(400).json({ message: "You have already reviewed this order" });
+        }
 
-        return res.status(200).json(order)
+        // Verify the customer owns this order
+        if (order.customerId.toString() !== customerId) {
+            return res.status(403).json({ message: "You can only review your own orders" });
+        }
+
+        const reviewData = { customerId, comment, rating, tags: tags || [], photos: photos || [], createdAt: new Date() };
+
+        const updatedOrder = await Order.findByIdAndUpdate(orderId, { review: reviewData }, { new: true });
+
+        await Artisan.findByIdAndUpdate(order.artisanId, {
+            $push: { reviews: reviewData }
+        }, { new: true });
+
+        return res.status(200).json(updatedOrder);
     } catch (err) {
-        console.log("Error in updateOrderReview function in order.controller.js", err.message)
-        return res.status(500).json({ message: "Error adding review to order" })
+        console.log("Error in updateOrderReview function in order.controller.js", err.message);
+        return res.status(500).json({ message: "Error adding review to order" });
     }
 }
 
 export const updateOrderRepairStatus = async (req, res) => {
     const { orderId } = req.params;
-    const { repairStatus } = req.body
+    const { repairStatus } = req.body;
     try {
-        let orders = await Order.findByIdAndUpdate(orderId, { repairStatus }, { new: true })
-        return res.status(200).json(orders)
+        let order = await Order.findByIdAndUpdate(orderId, { repairStatus }, { new: true });
+
+        // Send email notification to customer on decline or delivery
+        if (repairStatus === "declined" || repairStatus === "delivered") {
+            try {
+                const customer = await Customer.findById(order.customerId).populate("auth");
+                const artisan = await Artisan.findById(order.artisanId);
+                const artisanName = artisan ? `${artisan.firstName} ${artisan.lastName}` : "Your artisan";
+
+                if (customer?.auth?.email) {
+                    if (repairStatus === "declined") {
+                        await sendEmail({
+                            to: customer.auth.email,
+                            subject: "Your Fixr booking has been declined",
+                            html: `<p>Hi ${customer.firstName},</p>
+                                   <p>Unfortunately, <strong>${artisanName}</strong> was unable to take your booking for: <em>${order.problem}</em>.</p>
+                                   <p>Don't worry — you can easily find another verified artisan on Fixr to handle your repair.</p>
+                                   <p>Log in to your dashboard to book a new artisan.</p>
+                                   <p>— The Fixr Team</p>`
+                        });
+                    } else if (repairStatus === "delivered") {
+                        await sendEmail({
+                            to: customer.auth.email,
+                            subject: "Your repair is complete! 🎉",
+                            html: `<p>Hi ${customer.firstName},</p>
+                                   <p>Great news! <strong>${artisanName}</strong> has completed your repair for: <em>${order.problem}</em>.</p>
+                                   <p>We hope you're satisfied with the service. Please log in to leave a review and help other customers find great artisans!</p>
+                                   <p>— The Fixr Team</p>`
+                        });
+                    }
+                }
+            } catch (mailErr) {
+                console.error("Error sending status notification email to customer", mailErr);
+            }
+        }
+
+        return res.status(200).json(order);
     } catch (err) {
-        console.log("Error in updateOrderRepairStatus function in order.controller.js", err.message)
-        return res.status(500).json({ message: "Error adding repair status to order" })
+        console.log("Error in updateOrderRepairStatus function in order.controller.js", err.message);
+        return res.status(500).json({ message: "Error adding repair status to order" });
     }
 }
 export const updateOrderRepairFee = async (req, res) => {
@@ -124,5 +195,81 @@ export const updateOrderRepairReport = async (req, res) => {
     } catch (err) {
         console.log("Error in updateOrderRepairReport function in order.controller.js", err.message)
         return res.status(500).json({ message: "Error adding repair report to order" })
+    }
+}
+
+export const updateOrderPaymentStatus = async (req, res) => {
+    const { orderId } = req.params;
+    const artisanId = req.user.id;
+
+    try {
+        const order = await Order.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        // Ensure the artisan owns this order
+        if (order.artisanId.toString() !== artisanId) {
+            return res.status(403).json({ message: "You can only update payment for your own orders" });
+        }
+
+        // Prevent double-confirming
+        if (order.paymentStatus === "paid") {
+            return res.status(400).json({ message: "Payment has already been confirmed for this order" });
+        }
+
+        order.paymentStatus = "paid";
+        await order.save();
+
+        // Send email receipt to customer + notify admin
+        try {
+            const customer = await Customer.findById(order.customerId).populate("auth");
+            const artisan = await Artisan.findById(order.artisanId);
+            const artisanName = artisan ? `${artisan.firstName} ${artisan.lastName}` : "Your artisan";
+            const customerName = customer ? `${customer.firstName} ${customer.lastName}` : "Unknown";
+
+            if (customer?.auth?.email) {
+                await sendEmail({
+                    to: customer.auth.email,
+                    subject: "Payment confirmed for your Fixr repair",
+                    html: `<p>Hi ${customer.firstName},</p>
+                           <p>Your cash payment of <strong>₦${Number(order.repairFee || 0).toLocaleString()}</strong> has been confirmed by <strong>${artisanName}</strong>.</p>
+                           <p>Repair: <em>${order.problem}</em></p>
+                           <p>Thank you for using Fixr!</p>
+                           <p>— The Fixr Team</p>`
+                });
+            }
+
+            // Notify admin
+            const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+            if (adminEmail) {
+                await sendEmail({
+                    to: adminEmail,
+                    subject: `💰 Cash Payment Confirmed — ₦${Number(order.repairFee || 0).toLocaleString()}`,
+                    html: `
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                            <h2 style="color: #166534;">Payment Notification</h2>
+                            <p>A cash payment has been confirmed on Fixr.</p>
+                            <div style="background-color: #F0FDF4; border: 1px solid #DCFCE7; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                                <p style="margin: 4px 0;"><strong>Customer:</strong> ${customerName}</p>
+                                <p style="margin: 4px 0;"><strong>Artisan:</strong> ${artisanName}</p>
+                                <p style="margin: 4px 0;"><strong>Amount:</strong> ₦${Number(order.repairFee || 0).toLocaleString()}</p>
+                                <p style="margin: 4px 0;"><strong>Method:</strong> Cash</p>
+                                <p style="margin: 4px 0;"><strong>Order ID:</strong> ${orderId}</p>
+                            </div>
+                            <p style="font-size: 14px; color: #64748B;">— Fixr System</p>
+                        </div>
+                    `
+                });
+            }
+        } catch (mailErr) {
+            console.error("Error sending payment confirmation email", mailErr);
+        }
+
+        return res.status(200).json(order);
+    } catch (err) {
+        console.log("Error in updateOrderPaymentStatus function in order.controller.js", err.message);
+        return res.status(500).json({ message: "Error confirming payment" });
     }
 }

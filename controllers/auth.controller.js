@@ -47,8 +47,42 @@ export const customerSignUp = async (req, res) => {
 
         await sendEmail({
             to: email,
-            subject: 'Welcome to Fixr! 🎉',
-            html: `<p>Hi ${firstName}! Thanks for joining Fixr. We are excited to help you fix things instead of replacing them!</p>`
+            subject: 'Welcome to the Fixr Family! 🛠️',
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                    <h2 style="color: #166534;">Hi ${firstName},</h2>
+
+                    <p>We are thrilled to have you here! Finding a reliable, skilled artisan shouldn't be a headache. Whether you need a quick fix at home, a custom-made piece of furniture, or a professional service, <strong>Fixr</strong> connects you with the best local hands in minutes.</p>
+
+                    <h3 style="color: #166534;">🛠️ How it Works</h3>
+                    <ul style="padding-left: 20px;">
+                        <li style="margin-bottom: 8px;"><strong>Search & Discover:</strong> Browse through verified artisans near you and check out their portfolios and reviews.</li>
+                        <li style="margin-bottom: 8px;"><strong>Book with Confidence:</strong> Select a service, pick a time that works for you, and get matched instantly.</li>
+                        <li style="margin-bottom: 8px;"><strong>Job Well Done:</strong> Sit back while your artisan gets to work!</li>
+                    </ul>
+
+                    <h3 style="color: #166534;">💳 Flexible Payment Options</h3>
+                    <p>We want to make your experience as smooth as possible, which is why we offer two ways to pay:</p>
+                    <ul style="padding-left: 20px;">
+                        <li style="margin-bottom: 8px;"><strong>Pay Online (Powered by Flutterwave):</strong> Securely pay via card or bank transfer directly through the app. It's fast, encrypted, and hassle-free.</li>
+                        <li style="margin-bottom: 8px;"><strong>Pay with Cash:</strong> Prefer the traditional way? You can pay your artisan in person once the job is completed to your satisfaction.</li>
+                    </ul>
+
+                    <h3 style="color: #166534;">🛡️ Your Safety is Our Priority</h3>
+                    <p>Every artisan on our platform undergoes a thorough verification process. We also encourage you to rate and review your experience after every job to help us maintain the highest standards of quality.</p>
+
+                    <h3 style="color: #166534;">Ready to get started?</h3>
+                    <p>Your first project is just a few taps away. Log in now to explore artisans in your area!</p>
+                    
+                    <div style="text-center; margin: 30px 0;">
+                        <a href="${process.env.CLIENT_URL || 'https://fixr.ng'}" style="background-color: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Open the App</a>
+                    </div>
+
+                    <p>If you ever need a hand or have questions, our support team is always here for you. Happy building, fixing, and creating!</p>
+
+                    <p style="margin-top: 24px;">Best regards,<br/><strong>The Fixr Team</strong></p>
+                </div>
+            `
         });
 
         return res.status(201).json("Account created!", newCustomer)
@@ -112,8 +146,49 @@ export const artisanSignUp = async (req, res) => {
 
         await sendEmail({
             to: email,
-            subject: 'Welcome to Fixr Artisans! 🛠️',
-            html: `<p>Hi ${firstName}! Thanks for joining the Fixr network. Your skills are an invaluable asset.</p>`
+            subject: 'Welcome to the Fixr Family! | Let\'s get you started 🛠️',
+            html: `
+                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                    <h2 style="color: #166534;">Hi ${firstName},</h2>
+
+                    <p>Welcome to <strong>Fixr</strong>! We are thrilled to have you join our community of skilled professionals. Our mission is to connect your expertise with customers who need your services, helping you grow your business and manage your bookings seamlessly.</p>
+
+                    <h3 style="color: #166534;">🚀 Getting Started</h3>
+                    <p>Your profile is now live! Customers in your area can browse your services, view your portfolio, and book you for jobs.</p>
+
+                    <h3 style="color: #166534;">💳 Payment Options</h3>
+                    <p>We've made it easy for you to get paid. Your customers have two ways to settle their bills:</p>
+                    <ul>
+                        <li><strong>Flutterwave:</strong> Secure, instant online payments.</li>
+                        <li><strong>Cash:</strong> For customers who prefer to pay you directly in person.</li>
+                    </ul>
+
+                    <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 16px; border-radius: 8px; margin: 20px 0;">
+                        <h4 style="color: #92400E; margin-top: 0;">⚠️ Important: Reconciliation Fee</h4>
+                        <p style="margin-bottom: 8px;">To keep the platform running and continue bringing you new leads, a small service fee (reconciliation fee) is charged on every successful booking.</p>
+                        <p style="margin-bottom: 8px;">If a customer pays via <strong>Flutterwave</strong>, this fee is automatically handled. However, if a customer pays you in <strong>cash</strong>, you are required to manually remit the reconciliation fee to the following account:</p>
+                        <div style="background-color: white; padding: 12px; border-radius: 6px; margin: 12px 0;">
+                            <p style="margin: 4px 0;"><strong>Bank Name:</strong> First Bank of Nigeria</p>
+                            <p style="margin: 4px 0;"><strong>Account Name:</strong> Fixr Technologies Ltd</p>
+                            <p style="margin: 4px 0;"><strong>Account Number:</strong> 0123456789</p>
+                        </div>
+                        <p style="font-size: 14px; color: #92400E;">Please include your <strong>Booking ID</strong> or <strong>Registered Phone Number</strong> in the payment description to ensure your account remains in good standing.</p>
+                    </div>
+
+                    <h3 style="color: #166534;">💡 Pro Tips for Success</h3>
+                    <ul>
+                        <li><strong>Keep your profile updated:</strong> High-quality photos of your work attract 3x more customers.</li>
+                        <li><strong>Respond quickly:</strong> Fast responses lead to higher ratings and more bookings.</li>
+                        <li><strong>Confirm payments:</strong> Always mark a job as "Paid" in the app once you receive cash.</li>
+                    </ul>
+
+                    <p>If you have any questions, simply reply to this email or visit our Help Center in the app.</p>
+
+                    <p>We can't wait to see your business thrive!</p>
+
+                    <p style="margin-top: 24px;">Best regards,<br/><strong>The Fixr Team</strong></p>
+                </div>
+            `
         });
 
         return res.status(201).json("Account created!", newArtisan)
