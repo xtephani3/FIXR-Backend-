@@ -1,6 +1,7 @@
 import Artisan from "../models/artisan.model.js";
 import Customer from "../models/customer.model.js";
 import Order from "../models/order.model.js";
+import Reconciliation from "../models/reconciliation.model.js";
 import fs from "fs";
 import path from "path";
 import { v2 as cloudinary } from "cloudinary";
@@ -65,7 +66,17 @@ export const getOrderByCustomerId = async (req, res) => {
 export const getOrderByArtisanId = async (req, res) => {
     const artisanId = req.user.id
     try {
-        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId")
+        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId").lean()
+        const reconciliations = await Reconciliation.find({ artisanId }).lean();
+        
+        orders = orders.map(order => {
+            const rec = reconciliations.find(r => r.orderId.toString() === order._id.toString());
+            if (rec) {
+                order.reconciliation = rec;
+            }
+            return order;
+        });
+        
         return res.status(200).json(orders)
     } catch (err) {
         console.log("Error in getOrderByArtisanId function in order.controller.js", err.message)
