@@ -16,6 +16,7 @@ import paymentRoute from "./routes/payment.route.js";
 import chatRoute from "./routes/chat.route.js";
 import aiRoute from "./routes/ai.route.js";
 import uploadRoute from "./routes/upload.route.js";
+import reconciliationRoute from "./routes/reconciliation.route.js";
 
 dotenv.config();
 conDB();
@@ -59,6 +60,7 @@ app.use("/api/payment", paymentRoute)
 app.use("/api/chat", chatRoute)
 app.use("/api/ai", aiRoute)
 app.use("/api/upload", uploadRoute)
+app.use("/api/reconciliation", reconciliationRoute)
 
 
 app.listen(PORT, "0.0.0.0", () => {
