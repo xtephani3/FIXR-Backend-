@@ -11,12 +11,26 @@ export const aiChat = async (req, res) => {
             return res.status(400).json({ message: "Messages array is required" });
         }
 
-        const systemPrompt = `You are 'FixrBot', a helpful assistant for the Fixr repair marketplace. Your job is to help customers figure out what kind of artisan they need (e.g., Plumber vs Electrician), answer basic queries, and guide them on how to book on the platform. Keep your responses friendly, very concise, and directly helpful. Do not provide actual DIY repair instructions for safety reasons - always recommend an artisan.`;
+        const systemPrompt = `You are 'FixrBot', a helpful assistant for the Fixr repair marketplace. Your job is to help customers figure out what kind of artisan they need (e.g., Plumber vs Electrician), answer basic queries, and guide them on how to book on the platform. Keep your responses friendly, very concise, and directly helpful. Do not provide actual DIY repair instructions for safety reasons - always recommend an artisan. When suggesting artisans from your search, format their names as markdown links to their profiles using this exact syntax: [Name](/artisan/id). For example: "I recommend [John Doe](/artisan/65abc123...)."`;
 
-        // Configure Gemini 2.5 Flash
+        // Configure Gemini 2.5 Flash with Tools
         const model = genAI.getGenerativeModel({ 
             model: "gemini-2.5-flash",
-            systemInstruction: systemPrompt 
+            systemInstruction: systemPrompt,
+            tools: [{
+                functionDeclarations: [{
+                    name: "suggest_artisans",
+                    description: "Search the FIXR database for real, verified artisans based on the service needed. Use this whenever the user asks for a recommendation, needs someone to fix something, or asks to find an artisan. Supported services: mechanic, plumber, welder, carpenter, tailor, shoe-maker, technician, electrician.",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            serviceRendered: { type: "STRING", description: "The type of artisan needed (e.g. 'plumber', 'mechanic', 'electrician')." },
+                            city: { type: "STRING", description: "Optional city of the user" }
+                        },
+                        required: ["serviceRendered"]
+                    }
+                }]
+            }]
         });
 
         // Convert the previous frontend messages into Google Generative AI format
@@ -35,7 +49,47 @@ export const aiChat = async (req, res) => {
 
         const chat = model.startChat({ history });
 
-        const result = await chat.sendMessage(latestMessage);
+        let result = await chat.sendMessage(latestMessage);
+        
+        // Check if Gemini wants to call our function
+        const functionCalls = result.response.functionCalls();
+        if (functionCalls && functionCalls.length > 0) {
+            const call = functionCalls[0];
+            if (call.name === "suggest_artisans") {
+                const { serviceRendered, city } = call.args;
+                
+                let query = { applicationStatus: "approved" };
+                if (serviceRendered) query.serviceRendered = serviceRendered.toLowerCase();
+                if (city) query.city = new RegExp(city, "i");
+                
+                // Fetch top 3 matches (in a real scenario, applying the .ipynb ranking logic here)
+                const artisans = await Artisan.find(query).limit(3).lean();
+                
+                let matches = artisans.map(a => {
+                    const avgRating = a.reviews?.length ? (a.reviews.reduce((sum, r) => sum + r.rating, 0) / a.reviews.length).toFixed(1) : "New";
+                    return {
+                        name: `${a.firstName} ${a.lastName}`,
+                        service: a.serviceRendered,
+                        rating: avgRating,
+                        id: a._id.toString(),
+                        city: a.city
+                    };
+                });
+                
+                const apiResponse = { 
+                    result: matches.length > 0 ? matches : "No artisans found matching this criteria." 
+                };
+                
+                // Send the DB results back to Gemini so it can generate a final response
+                result = await chat.sendMessage([{
+                    functionResponse: {
+                        name: "suggest_artisans",
+                        response: apiResponse
+                    }
+                }]);
+            }
+        }
+
         const responseText = result.response.text();
 
         return res.status(200).json({ reply: responseText });
