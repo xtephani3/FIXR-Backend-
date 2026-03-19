@@ -10,12 +10,15 @@ export const getMessagesByOrder = async (req, res) => {
         }
 
         // Find all orders between this exact customer and artisan
+        const customerIdMatch = currentOrder.customerId ? currentOrder.customerId.toString() : null;
+        const artisanIdMatch = currentOrder.artisanId ? currentOrder.artisanId.toString() : null;
+
         const matchingOrders = await Order.find({ 
-            customerId: currentOrder.customerId, 
-            artisanId: currentOrder.artisanId 
+            customerId: customerIdMatch, 
+            artisanId: artisanIdMatch 
         }).select('_id');
         
-        const matchingOrderIds = matchingOrders.map(order => order._id);
+        const matchingOrderIds = matchingOrders.map(order => order._id.toString());
 
         // Fetch messages belonging to ANY of those orders
         const messages = await Message.find({ orderId: { $in: matchingOrderIds } }).sort({ createdAt: 1 });
