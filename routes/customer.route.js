@@ -1,6 +1,7 @@
 import express from "express";
 
 import Admin from "../models/admin.model.js";
+import Customer from "../models/customer.model.js";
 
 import { verifyAccessByModel, verifyAccessByLogin } from "../middlewares/verification.js";
 import { getAllCustomer, getCustomerById, updateProfile, changePassword, deleteAccount } from "../controllers/customer.controller.js";
