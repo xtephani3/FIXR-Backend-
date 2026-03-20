@@ -30,7 +30,8 @@ app.use(cors({
   origin: [
     "http://localhost:5173",
     "https://lemon-field-085ef710f.4.azurestaticapps.net",
-    "https://fixr-frontend-testing.onrender.com"
+    "https://fixr-frontend-testing.onrender.com",
+    "https://fixrr.vercel.app",
   ],
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
