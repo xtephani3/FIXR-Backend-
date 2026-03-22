@@ -1,75 +1,52 @@
-import {
-    BlobServiceClient,
-    generateBlobSASQueryParameters,
-    BlobSASPermissions,
-    StorageSharedKeyCredential
-} from "@azure/storage-blob";
-import crypto from "crypto";
+import { v2 as cloudinary } from 'cloudinary';
+import crypto from 'crypto';
 
-export const generateSasToken = async (req, res) => {
+export const generateSignature = async (req, res) => {
     try {
-        const { fileName, fileType, fileSize } = req.body;
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+        const apiKey = process.env.CLOUDINARY_API_KEY;
+        const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-        if (!fileName || !fileType || !fileSize) {
-            return res.status(400).json({ message: "fileName, fileType, and fileSize are required" });
+        if (!cloudName || !apiKey || !apiSecret) {
+            return res.status(500).json({ message: "Cloudinary configuration is missing in the environment." });
         }
 
-        // File validation
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-        if (!allowedTypes.includes(fileType)) {
-            return res.status(400).json({ message: "Invalid file type. Only JPG, PNG, WEBP, PDF, and DOC are allowed" });
-        }
+        cloudinary.config({
+            cloud_name: cloudName,
+            api_key: apiKey,
+            api_secret: apiSecret
+        });
 
-        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-        if (fileSize > MAX_FILE_SIZE) {
-            return res.status(400).json({ message: "File size exceeds 10MB limit" });
-        }
-
-        const accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME;
-        const accountKey = process.env.AZURE_STORAGE_ACCOUNT_KEY;
-        const containerName = process.env.AZURE_STORAGE_CONTAINER_NAME;
-
-        if (!accountName || !accountKey || !containerName) {
-            return res.status(500).json({ message: "Azure Storage configuration is missing in the environment." });
-        }
-
-        const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey);
-        const blobServiceClient = new BlobServiceClient(
-            `https://${accountName}.blob.core.windows.net`,
-            sharedKeyCredential
-        );
-
-        const containerClient = blobServiceClient.getContainerClient(containerName);
-
-        // Generate unique filename as requested
-        const uniqueFilename = `${crypto.randomUUID()}-${fileName}`;
-        const blobClient = containerClient.getBlobClient(uniqueFilename);
-
-        // Create dates for the SAS token, allowing for slight clock skew
-        const startsOn = new Date();
-        startsOn.setMinutes(startsOn.getMinutes() - 10); // 10 minutes in the past
+        // Optional: you can extract folder or resource_type from req.body if you want
+        const timestamp = Math.round((new Date).getTime() / 1000);
         
-        const expiresOn = new Date(new Date().valueOf() + 3600 * 1000); // 1 hour
+        // Let's create a unique ID for public_id to be safe
+        const { fileName } = req.body;
+        // sanitize filename
+        const public_id = fileName 
+            ? `${crypto.randomUUID()}-${fileName.split('.')[0]}` 
+            : crypto.randomUUID();
 
-        const sasOptions = {
-            containerName,
-            blobName: uniqueFilename,
-            permissions: BlobSASPermissions.parse("racw"), // Read, Add, Create, Write
-            startsOn,
-            expiresOn,
+        const paramsToSign = {
+            timestamp,
+            public_id
         };
 
-        const sasToken = generateBlobSASQueryParameters(sasOptions, sharedKeyCredential).toString();
-        const sasUrl = `${blobClient.url}?${sasToken}`;
+        const signature = cloudinary.utils.api_sign_request(
+            paramsToSign,
+            apiSecret
+        );
 
         return res.status(200).json({
-            sasUrl,
-            blobUrl: blobClient.url, // Use this URL to save into db after uploading
-            filename: uniqueFilename
+            signature,
+            timestamp,
+            cloudName,
+            apiKey,
+            public_id
         });
 
     } catch (error) {
-        console.error("Error generating SAS:", error);
-        return res.status(500).json({ message: "Error generating SAS token", error: error.message });
+        console.error("Error generating signature:", error);
+        return res.status(500).json({ message: "Error generating signature", error: error.message });
     }
 };
