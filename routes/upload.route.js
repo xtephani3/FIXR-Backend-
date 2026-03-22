@@ -1,8 +1,8 @@
 import express from "express";
-import { generateSasToken } from "../controllers/upload.controller.js";
+import { generateSignature } from "../controllers/upload.controller.js";
 
 const router = express.Router();
 
-router.post("/sas", generateSasToken);
+router.post("/signature", generateSignature);
 
 export default router;
