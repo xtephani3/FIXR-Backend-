@@ -33,8 +33,8 @@ const initialArtisans = [
   { firstName: "Abiodun", lastName: "Fashola", serviceRendered: "technician", yearsOfExperience: 2, rating: 4.15, completedJobs: 401, complaintRate: 0.137, availability: "Offline", city: "Kano" }
 ];
 
-// Generate the remaining 40 to match distributions closely
-for (let i = 0; i < 40; i++) {
+// Generate the remaining 15 to match distributions closely
+for (let i = 0; i < 15; i++) {
   initialArtisans.push({
     firstName: randomChoice(firstNames),
     lastName: randomChoice(lastNames),
