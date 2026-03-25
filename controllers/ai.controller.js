@@ -157,13 +157,19 @@ The user is located in: "${location || 'Not specified'}".
 Here is the JSON list of available verified artisans:
 ${JSON.stringify(artisanList, null, 2)}
 
-Analyze the user's problem, focusing heavily on the item that needs repair. Pick the Top 3 best matching artisans from the list based primarily on how well their "service" or "bio" matches the item needing repair. 
-You may consider "city" and "avgRating" as secondary bonuses, but DO NOT safely exclude artisans just because their location doesn't match perfectly. If there are no perfect matches, just return the next closest related artisans.
+Analyze the user's problem, focusing heavily on the item that needs repair. 
+You MUST prioritize finding artisans whose "service" or "bio" matches the problem AND whose "city" matches the user's location.
+If you find matching artisans in the user's location, return them.
+If, and only if, there are NO artisans with the right skills in the user's location, you may fallback to recommending artisans from other locations who have the right skills.
 
 Respond STRICTLY with a valid JSON array of objects (and nothing else, no markdown fences).
 Format exactly like this:
 [
-  { "artisanId": "id_here", "reason": "Short 1-sentence explanation of why they are a good fit based on the item needing repair." }
+  { 
+    "artisanId": "id_here", 
+    "reason": "Short 1-sentence explanation of why they are a good fit based on the item needing repair.",
+    "outOfLocation": true // Boolean: set to true ONLY if you are recommending them from a different location because no suitable local artisans were found, otherwise false.
+  }
 ]`;
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
