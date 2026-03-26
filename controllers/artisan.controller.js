@@ -6,7 +6,7 @@ export const getAllArtisan = async (req, res) => {
     try {
         const { page, limit, skip, usePagination } = getPagination(req.query);
         const selectFields = buildSelect(req.query.fields);
-        const filter = buildArtisanFilter(req.query);
+        const filter = await resolveArtisanFilter(req.query);
 
         let query = Artisan.find(filter);
         if (selectFields) {
@@ -146,6 +146,18 @@ const buildArtisanFilter = (query = {}) => {
             { serviceDescription: regex }
         ];
     }
+    return filter;
+};
+
+const resolveArtisanFilter = async (query = {}) => {
+    const filter = buildArtisanFilter(query);
+
+    if (query.email) {
+        const regex = new RegExp(escapeRegex(query.email), "i");
+        const authMatches = await Auth.find({ email: regex }).select("_id");
+        filter.auth = { $in: authMatches.map((auth) => auth._id) };
+    }
+
     return filter;
 };
 
