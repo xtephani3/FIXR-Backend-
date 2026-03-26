@@ -2,6 +2,7 @@ import Artisan from "../models/artisan.model.js";
 import Customer from "../models/customer.model.js";
 import Order from "../models/order.model.js";
 import Reconciliation from "../models/reconciliation.model.js";
+import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
 import { v2 as cloudinary } from "cloudinary";
@@ -55,8 +56,38 @@ export const createOrderByCustomer = async (req, res) => {
 export const getOrderByCustomerId = async (req, res) => {
     const customerId = req.user.id
     try {
-        let orders = await Order.find({ customerId }).sort({ createdAt: -1 }).populate("artisanId")
-        return res.status(200).json(orders)
+        const filter = buildOrderFilter({ ownerKey: "customerId", ownerId: customerId, query: req.query });
+        const { page, limit, skip, usePagination } = getPagination(req.query);
+        const selectFields = buildSelect(req.query.fields);
+
+        let query = Order.find(filter).sort({ createdAt: -1 });
+        if (selectFields) {
+            query = query.select(selectFields);
+        }
+        query = query.populate("artisanId");
+
+        if (usePagination) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        const [orders, total] = await Promise.all([
+            query,
+            usePagination ? Order.countDocuments(filter) : Promise.resolve(null)
+        ]);
+
+        if (!usePagination) {
+            return res.status(200).json(orders);
+        }
+
+        return res.status(200).json({
+            data: orders,
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.log("Error in getOrderByCustomerId  function in order.controller.js", err.message)
         return res.status(500).json({ message: "Error fetching customer's orders" })
@@ -66,8 +97,26 @@ export const getOrderByCustomerId = async (req, res) => {
 export const getOrderByArtisanId = async (req, res) => {
     const artisanId = req.user.id
     try {
-        let orders = await Order.find({ artisanId }).sort({ createdAt: -1 }).populate("customerId").lean()
-        const reconciliations = await Reconciliation.find({ artisanId }).lean();
+        const filter = buildOrderFilter({ ownerKey: "artisanId", ownerId: artisanId, query: req.query });
+        const { page, limit, skip, usePagination } = getPagination(req.query);
+        const selectFields = buildSelect(req.query.fields);
+
+        let query = Order.find(filter).sort({ createdAt: -1 });
+        if (selectFields) {
+            query = query.select(selectFields);
+        }
+        query = query.populate("customerId").lean();
+
+        if (usePagination) {
+            query = query.skip(skip).limit(limit);
+        }
+
+        let orders = await query;
+        const orderIds = orders.map(order => order._id);
+        const reconciliations = await Reconciliation.find({ 
+            artisanId, 
+            orderId: { $in: orderIds } 
+        }).lean();
         
         orders = orders.map(order => {
             const rec = reconciliations.find(r => r.orderId.toString() === order._id.toString());
@@ -76,8 +125,21 @@ export const getOrderByArtisanId = async (req, res) => {
             }
             return order;
         });
-        
-        return res.status(200).json(orders)
+
+        if (!usePagination) {
+            return res.status(200).json(orders);
+        }
+
+        const total = await Order.countDocuments(filter);
+        return res.status(200).json({
+            data: orders,
+            meta: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
+        });
     } catch (err) {
         console.log("Error in getOrderByArtisanId function in order.controller.js", err.message)
         return res.status(500).json({ message: "Error fetching artisan's orders" })
@@ -273,3 +335,97 @@ export const updateOrderPaymentStatus = async (req, res) => {
         return res.status(500).json({ message: "Error confirming payment" });
     }
 }
+
+export const getOrderById = async (req, res) => {
+    const { orderId } = req.params;
+    const userId = req.user?.id;
+
+    if (!orderId) {
+        return res.status(400).json({ message: "Order ID is required" });
+    }
+
+    try {
+        const order = await Order.findById(orderId)
+            .populate("artisanId")
+            .populate("customerId")
+            .lean();
+
+        if (!order) {
+            return res.status(404).json({ message: "Order not found" });
+        }
+
+        const customerId = order.customerId?._id?.toString() || order.customerId?.toString();
+        const artisanId = order.artisanId?._id?.toString() || order.artisanId?.toString();
+
+        if (!userId || (userId !== customerId && userId !== artisanId)) {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        return res.status(200).json(order);
+    } catch (err) {
+        console.log("Error in getOrderById function in order.controller.js", err.message);
+        return res.status(500).json({ message: "Error fetching order" });
+    }
+};
+
+const getPagination = (query = {}) => {
+    const rawPage = Number(query.page);
+    const rawLimit = Number(query.limit);
+    const usePagination = Number.isFinite(rawPage) || Number.isFinite(rawLimit);
+
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
+    const skip = (page - 1) * limit;
+
+    return { page, limit, skip, usePagination };
+};
+
+const buildSelect = (fields) => {
+    if (!fields) return null;
+    const cleaned = String(fields)
+        .split(",")
+        .map((field) => field.trim())
+        .filter(Boolean);
+
+    if (cleaned.length === 0) return null;
+    if (!cleaned.includes("_id")) cleaned.unshift("_id");
+    return cleaned.join(" ");
+};
+
+const buildOrderFilter = ({ ownerKey, ownerId, query = {} }) => {
+    const filter = { [ownerKey]: ownerId };
+
+    if (query.status) {
+        const statuses = String(query.status)
+            .split(",")
+            .map((status) => status.trim().toLowerCase())
+            .filter(Boolean);
+
+        if (statuses.length === 1) {
+            filter.repairStatus = statuses[0];
+        } else if (statuses.length > 1) {
+            filter.repairStatus = { $in: statuses };
+        }
+    }
+
+    if (query.search) {
+        const term = escapeRegex(query.search);
+        const regex = new RegExp(term, "i");
+        const orFilters = [
+            { problem: regex },
+            { location: regex }
+        ];
+
+        if (mongoose.Types.ObjectId.isValid(query.search)) {
+            orFilters.push({ _id: query.search });
+        }
+
+        filter.$or = orFilters;
+    }
+
+    return filter;
+};
+
+const escapeRegex = (value) => {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};

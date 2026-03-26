@@ -14,6 +14,22 @@ const customerSchema = new mongoose.Schema({
     phoneNumber: {
         type: String
     },
+    realtimeLocation: {
+        latitude: Number,
+        longitude: Number,
+        accuracy: Number,
+        city: String,
+        state: String,
+        country: String,
+        countryCode: String,
+        source: {
+            type: String,
+            enum: ["gps", "ip"],
+            default: "gps"
+        },
+        isApproximate: Boolean,
+        updatedAt: Date
+    },
     loggedIn: {
         type: Boolean,
         default: false
