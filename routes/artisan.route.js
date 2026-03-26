@@ -9,6 +9,7 @@ const router = express.Router();
 
 router.get("/", getAllArtisan)
 router.get("/artisanId", verifyAccessByLogin, getArtisanById)
+router.get("/:id", getArtisanById)
 router.patch("/status", verifyAccessByModel(Admin), updateArtisanStatus)
 router.delete("/delete", verifyAccessByModel(Admin), deleteArtisanById)
 

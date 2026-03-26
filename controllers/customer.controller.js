@@ -1,6 +1,7 @@
 import Customer from "../models/customer.model.js";
 import Auth from "../models/auth.model.js";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { hashPassword } from "../utils/util.js";
 
 export const getAllCustomer = async (_req, res) => {
@@ -95,5 +96,68 @@ export const deleteAccount = async (req, res) => {
     } catch (error) {
         console.error("Error in deleteAccount:", error.message);
         res.status(500).json({ message: "Error deleting account" });
+    }
+};
+
+const resolveCustomerIdFromToken = async (req) => {
+    const token = req.cookies?.stored_token;
+    if (!token) return null;
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded?.id) return null;
+        const customer = await Customer.findById(decoded.id);
+        return customer ? customer._id : null;
+    } catch {
+        return null;
+    }
+};
+
+export const updateRealtimeLocation = async (req, res) => {
+    const payload = req.body?.location ?? req.body ?? {};
+    const latitude = Number(payload.latitude);
+    const longitude = Number(payload.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return res.status(400).json({ message: "latitude and longitude are required" });
+    }
+
+    const realtimeLocation = {
+        latitude,
+        longitude,
+        accuracy: Number.isFinite(Number(payload.accuracy)) ? Number(payload.accuracy) : undefined,
+        city: payload.city,
+        state: payload.state,
+        country: payload.country,
+        countryCode: payload.countryCode,
+        source: payload.source === "ip" ? "ip" : "gps",
+        isApproximate: Boolean(payload.isApproximate),
+        updatedAt: new Date()
+    };
+
+    const customerId = await resolveCustomerIdFromToken(req);
+    if (!customerId) {
+        return res.status(202).json({ message: "Location received", persisted: false });
+    }
+
+    try {
+        const customer = await Customer.findByIdAndUpdate(
+            customerId,
+            { realtimeLocation },
+            { new: true }
+        );
+
+        if (!customer) {
+            return res.status(404).json({ message: "Customer not found" });
+        }
+
+        return res.status(200).json({
+            message: "Location saved",
+            persisted: true,
+            realtimeLocation: customer.realtimeLocation
+        });
+    } catch (error) {
+        console.error("Error in updateRealtimeLocation:", error.message);
+        return res.status(500).json({ message: "Error saving location" });
     }
 };

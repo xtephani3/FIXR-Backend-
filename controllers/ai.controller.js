@@ -124,18 +124,46 @@ export const aiMatch = async (req, res) => {
             return res.status(400).json({ message: "Problem description is required to match an artisan." });
         }
 
-        // Fetch approved artisans
-        const artisans = await Artisan.find(
-            { applicationStatus: "approved" }, 
-            '_id firstName lastName serviceRendered serviceDescription city state reviews'
-        ).lean();
+        const inferredService = inferServiceFromProblem(problemDescription);
+        const baseQuery = { applicationStatus: "approved" };
+        if (inferredService) {
+            baseQuery.serviceRendered = inferredService;
+        }
+        if (location) {
+            const locationRegex = new RegExp(location, "i");
+            baseQuery.$or = [{ city: locationRegex }, { state: locationRegex }];
+        }
+
+        const projection = "_id firstName lastName serviceRendered serviceDescription city state reviews yearsOfExperience completedJobs";
+
+        // Fetch filtered artisans first (service + location)
+        let artisans = await Artisan.find(baseQuery, projection).lean();
+
+        // If none found for location, relax location filter
+        if (artisans.length === 0 && location) {
+            const relaxedQuery = { applicationStatus: "approved" };
+            if (inferredService) {
+                relaxedQuery.serviceRendered = inferredService;
+            }
+            artisans = await Artisan.find(relaxedQuery, projection).lean();
+        }
+
+        // If still empty and service was inferred, relax service filter
+        if (artisans.length === 0 && inferredService) {
+            const relaxedQuery = { applicationStatus: "approved" };
+            if (location) {
+                const locationRegex = new RegExp(location, "i");
+                relaxedQuery.$or = [{ city: locationRegex }, { state: locationRegex }];
+            }
+            artisans = await Artisan.find(relaxedQuery, projection).lean();
+        }
 
         if (!artisans || artisans.length === 0) {
             return res.status(200).json({ matches: [], message: "No verified artisans available." });
         }
 
-        // Build a lightweight artisan list for the AI to read
-        const artisanList = artisans.map(a => {
+        // Rank locally to keep the model input small
+        const rankedArtisans = artisans.map(a => {
             const avgRating = a.reviews?.length 
                 ? a.reviews.reduce((sum, r) => sum + r.rating, 0) / a.reviews.length 
                 : 0;
@@ -146,16 +174,23 @@ export const aiMatch = async (req, res) => {
                 service: a.serviceRendered,
                 bio: a.serviceDescription,
                 city: a.city,
-                avgRating: avgRating.toFixed(1),
+                avgRating: Number(avgRating.toFixed(1)),
                 totalReviews: a.reviews?.length || 0
             };
         });
+
+        rankedArtisans.sort((a, b) => {
+            if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
+            return b.totalReviews - a.totalReviews;
+        });
+
+        const topCandidates = rankedArtisans.slice(0, 50);
 
         const prompt = `A user needs an artisan for the following problem: "${problemDescription}". 
 The user is located in: "${location || 'Not specified'}".
 
 Here is the JSON list of available verified artisans:
-${JSON.stringify(artisanList, null, 2)}
+${JSON.stringify(topCandidates, null, 2)}
 
 Analyze the user's problem, focusing heavily on the item that needs repair. 
 You MUST prioritize finding artisans whose "service" or "bio" matches the problem AND whose "city" matches the user's location.
@@ -190,4 +225,27 @@ Format exactly like this:
         console.error("Error in AI Match:", err);
         return res.status(500).json({ message: "Error running AI Match algorithm", details: err.message });
     }
+};
+
+const SERVICE_KEYWORDS = [
+    { service: "mechanic", keywords: ["car", "engine", "vehicle", "auto", "truck", "battery", "brake", "tire", "tyre"] },
+    { service: "plumber", keywords: ["pipe", "leak", "sink", "toilet", "bath", "tap", "faucet", "plumbing", "drain"] },
+    { service: "electrician", keywords: ["wiring", "power", "electric", "socket", "outlet", "breaker", "fuse", "light"] },
+    { service: "carpenter", keywords: ["wood", "door", "cabinet", "furniture", "table", "chair", "wardrobe"] },
+    { service: "welder", keywords: ["weld", "metal", "gate", "iron", "steel"] },
+    { service: "technician", keywords: ["phone", "laptop", "computer", "screen", "tv", "television", "printer"] },
+    { service: "tailor", keywords: ["cloth", "dress", "sew", "stitch", "shirt", "zip", "fashion"] },
+    { service: "shoe-maker", keywords: ["shoe", "sole", "boot", "sandal"] },
+    { service: "painter", keywords: ["paint", "wall", "ceiling", "color", "renovation"] },
+    { service: "jeweler", keywords: ["ring", "necklace", "bracelet", "jewel", "gold", "silver"] }
+];
+
+const inferServiceFromProblem = (problemDescription = "") => {
+    const text = String(problemDescription).toLowerCase();
+    for (const entry of SERVICE_KEYWORDS) {
+        if (entry.keywords.some(keyword => text.includes(keyword))) {
+            return entry.service;
+        }
+    }
+    return null;
 };

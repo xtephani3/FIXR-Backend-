@@ -8,7 +8,6 @@ on:
       [ main ]
     paths:
     - '**'
-    - '.github/workflows/fixr-backend-AutoDeployTrigger-a30d096d-b10c-49b9-9626-f1f390805811.yml'
 
   # Allow manual trigger 
   workflow_dispatch:
@@ -19,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout to the branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v2
@@ -30,14 +29,14 @@ jobs:
         uses: azure/container-apps-deploy-action@v2
         with:
           appSourcePath: ${{ github.workspace }}
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
-          registryUrl: fixrregistry21744.azurecr.io
+          _dockerfilePathKey_: ./Dockerfile
+          registryUrl: docker.io
           registryUsername: ${{ secrets.FIXRBACKEND_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.FIXRBACKEND_REGISTRY_PASSWORD }}
           containerAppName: fixr-backend
           resourceGroup: exinta-tria
-          imageToBuild: fixrregistry21744.azurecr.io/fixr-backend:${{ github.sha }}
+          imageToBuild: docker.io/${{ secrets.FIXRBACKEND_REGISTRY_USERNAME }}/fixr-backend:${{ github.sha }}
+        
           
             
 
