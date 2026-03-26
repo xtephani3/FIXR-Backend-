@@ -122,18 +122,37 @@ export const updateReconciliationStatus = async (req, res) => {
                 const artisan = reconciliation.artisanId;
                 const isConfirmed = status === "confirmed";
                 
-                let htmlMessage = `<p>Hi ${artisan.firstName},</p>`;
+                const loginUrlArtisan = `${process.env.CLIENT_URL || 'https://fixrr.vercel.app'}/artisan-dashboard`;
+                let htmlMessage = `
+                    <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                        <h2 style="color: #166534;">Hi ${artisan.firstName},</h2>`;
+                        
                 if (isConfirmed) {
-                    htmlMessage += `<p>Great news! Your reconciliation fee payment of <strong>₦${Number(reconciliation.amount).toLocaleString()}</strong> for Order ${reconciliation.orderId} has been <strong>confirmed</strong>.</p>
-                                    <p>Thank you for keeping your account in good standing.</p>`;
+                    htmlMessage += `
+                        <p>Great news! Your reconciliation fee payment of <strong>₦${Number(reconciliation.amount).toLocaleString()}</strong> for Order #${reconciliation.orderId} has been <strong style="color: #15803D;">confirmed</strong>.</p>
+                        <p>Thank you for keeping your account in good standing and being a valuable part of the Fixr community!</p>
+                        <div style="margin: 30px 0;">
+                            <a href="${loginUrlArtisan}" style="background-color: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">View your Dashboard</a>
+                        </div>`;
                 } else {
-                    htmlMessage += `<p>Your reconciliation fee payment of <strong>₦${Number(reconciliation.amount).toLocaleString()}</strong> for Order ${reconciliation.orderId} was <strong>rejected</strong>.</p>`;
+                    htmlMessage += `
+                        <p>Your reconciliation fee payment of <strong>₦${Number(reconciliation.amount).toLocaleString()}</strong> for Order #${reconciliation.orderId} was <strong style="color: #DC2626;">rejected</strong>.</p>`;
                     if (adminNote) {
-                        htmlMessage += `<p><strong>Admin Note:</strong> ${adminNote}</p>`;
+                        htmlMessage += `
+                        <div style="background-color: #FEF2F2; border-left: 4px solid #DC2626; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                            <p style="margin: 0; color: #991B1B;"><strong>Admin Note:</strong> ${adminNote}</p>
+                        </div>`;
                     }
-                    htmlMessage += `<p>Please log in to your dashboard to submit a valid receipt or contact support if you need help.</p>`;
+                    htmlMessage += `
+                        <p>Please log in to your dashboard to submit a valid receipt or contact support if you need help.</p>
+                        <div style="margin: 30px 0;">
+                            <a href="${loginUrlArtisan}" style="background-color: #DC2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Log in to resolve this issue</a>
+                        </div>`;
                 }
-                htmlMessage += `<p>— The Fixr Team</p>`;
+                
+                htmlMessage += `
+                        <p>Best regards,<br/><strong>The Fixr Team</strong></p>
+                    </div>`;
 
                 await sendEmail({
                     to: artisan.auth.email,

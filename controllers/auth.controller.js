@@ -387,9 +387,28 @@ export const forgotPassword = async (req, res) => {
              to: email,
              subject: 'Fixr Password Reset Request',
              html: `
-                 <p>You requested a password reset. Please click the link below to set a new password:</p>
-                 <a href="${resetUrl}">${resetUrl}</a>
-                 <p>If you didn't request this, you can safely ignore this email.</p>
+                 <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                     <div style="background-color: #166534; padding: 24px; text-align: center;">
+                         <h2 style="color: white; margin: 0; letter-spacing: 1px;">Fixr Password Reset</h2>
+                     </div>
+                     <div style="padding: 32px;">
+                         <p style="font-size: 16px;">Hello,</p>
+                         <p style="font-size: 16px;">We received a request to reset your password. You can do this by clicking the button below:</p>
+                         
+                         <div style="text-align: center; margin: 32px 0;">
+                             <a href="${resetUrl}" style="background-color: #166534; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block;">Reset Your Password</a>
+                         </div>
+                         
+                         <p style="font-size: 14px; color: #4B5563; background-color: #F3F4F6; padding: 12px; border-radius: 6px;">
+                             If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.
+                         </p>
+                         
+                         <p style="margin-top: 32px; font-size: 14px; color: #6B7280; border-top: 1px solid #E5E7EB; padding-top: 16px;">
+                             If the button doesn't work, copy and paste this link into your browser:<br/>
+                             <a href="${resetUrl}" style="color: #166534; word-break: break-all;">${resetUrl}</a>
+                         </p>
+                     </div>
+                 </div>
              `
          });
 

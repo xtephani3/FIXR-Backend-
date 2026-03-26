@@ -38,8 +38,26 @@ export const createOrderByCustomer = async (req, res) => {
             if (artisan && artisan.auth && artisan.auth.email) {
                  await sendEmail({
                     to: artisan.auth.email,
-                    subject: "You have a new booking on Fixr!",
-                    text: `Hello ${artisan.firstName},\n\nYou have just received a new repair booking on Fixr for the following job in ${location}:\n\n${problem}\n\nPlease log in to your dashboard to review and quote the repair to begin.`
+                    subject: "You have a new booking on Fixr! 🎉",
+                    html: `
+                        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                            <h2 style="color: #166534;">Hello ${artisan.firstName},</h2>
+                            <p>Great news! You have just received a new repair booking on Fixr!</p>
+                            
+                            <div style="background-color: #F0FDF4; border-left: 4px solid #166534; padding: 16px; margin: 20px 0; border-radius: 4px;">
+                                <h3 style="margin-top: 0; color: #166534;">Job Details</h3>
+                                <p style="margin: 4px 0;"><strong>Location:</strong> ${location}</p>
+                                <p style="margin: 4px 0;"><strong>Issue:</strong> ${problem.replace(/\r?\n/g, '<br/>')}</p>
+                            </div>
+                            
+                            <p>The customer is eagerly waiting for your response. Please log in to inspect the job details and send them a quote to begin.</p>
+                            
+                            <div style="margin: 30px 0;">
+                                <a href="${process.env.CLIENT_URL || 'https://fixrr.vercel.app'}/artisan-dashboard" style="background-color: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Log in to your Dashboard</a>
+                            </div>
+                            <p>Best regards,<br/><strong>The Fixr Team</strong></p>
+                        </div>
+                    `
                 });
             }
         } catch (mailErr) {
@@ -192,37 +210,92 @@ export const updateOrderRepairStatus = async (req, res) => {
     try {
         let order = await Order.findByIdAndUpdate(orderId, { repairStatus }, { new: true });
 
-        // Send email notification to customer on decline or delivery
-        if (repairStatus === "declined" || repairStatus === "delivered") {
+        // Send email notifications on status transitions
+        if (repairStatus === "declined" || repairStatus === "delivered" || repairStatus === "inspected" || repairStatus === "accepted") {
             try {
                 const customer = await Customer.findById(order.customerId).populate("auth");
-                const artisan = await Artisan.findById(order.artisanId);
+                const artisan = await Artisan.findById(order.artisanId).populate("auth");
                 const artisanName = artisan ? `${artisan.firstName} ${artisan.lastName}` : "Your artisan";
+                const customerName = customer ? `${customer.firstName} ${customer.lastName}` : "Your customer";
+                
+                const clientUrlCustomer = `${process.env.CLIENT_URL || 'https://fixrr.vercel.app'}/customer-dashboard`;
+                const clientUrlTracking = `${process.env.CLIENT_URL || 'https://fixrr.vercel.app'}/tracking`;
 
+                // Notify Customer
                 if (customer?.auth?.email) {
                     if (repairStatus === "declined") {
                         await sendEmail({
                             to: customer.auth.email,
                             subject: "Your Fixr booking has been declined",
-                            html: `<p>Hi ${customer.firstName},</p>
+                            html: `
+                                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                                   <h2 style="color: #991B1B;">Hi ${customer.firstName},</h2>
                                    <p>Unfortunately, <strong>${artisanName}</strong> was unable to take your booking for: <em>${order.problem}</em>.</p>
-                                   <p>Don't worry — you can easily find another verified artisan on Fixr to handle your repair.</p>
-                                   <p>Log in to your dashboard to book a new artisan.</p>
-                                   <p>— The Fixr Team</p>`
+                                   <p>Don't worry — you can easily find another verified artisan on Fixr to handle your repair. We have dozens of professionals ready to help!</p>
+                                   <div style="margin: 30px 0;">
+                                       <a href="${clientUrlCustomer}" style="background-color: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Log in to Book a New Artisan</a>
+                                   </div>
+                                   <p>— The Fixr Team</p>
+                                </div>`
                         });
                     } else if (repairStatus === "delivered") {
                         await sendEmail({
                             to: customer.auth.email,
                             subject: "Your repair is complete! 🎉",
-                            html: `<p>Hi ${customer.firstName},</p>
-                                   <p>Great news! <strong>${artisanName}</strong> has completed your repair for: <em>${order.problem}</em>.</p>
-                                   <p>We hope you're satisfied with the service. Please log in to leave a review and help other customers find great artisans!</p>
-                                   <p>— The Fixr Team</p>`
+                            html: `
+                                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                                   <h2 style="color: #166534;">Hi ${customer.firstName},</h2>
+                                   <p>Great news! <strong>${artisanName}</strong> has marked your repair for <em>${order.problem}</em> as complete.</p>
+                                   <p>We hope you are satisfied with the service provided.</p>
+                                   <div style="background-color: #FFFBEB; border: 1px solid #F59E0B; padding: 16px; margin: 20px 0; border-radius: 8px;">
+                                       <h3 style="margin-top: 0; color: #92400E;">How was your experience?</h3>
+                                       <p>Please log in to leave a review for ${artisanName}. Your feedback helps other customers find great artisans and rewards professionals for their hard work!</p>
+                                   </div>
+                                   <div style="margin: 30px 0;">
+                                       <a href="${clientUrlCustomer}" style="background-color: #F59E0B; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Leave a Review Now</a>
+                                   </div>
+                                   <p>— The Fixr Team</p>
+                                </div>`
+                        });
+                    } else if (repairStatus === "inspected") {
+                        await sendEmail({
+                            to: customer.auth.email,
+                            subject: "Your artisan has sent a quote! 📝",
+                            html: `
+                                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                                   <h2 style="color: #166534;">Hi ${customer.firstName},</h2>
+                                   <p><strong>${artisanName}</strong> has inspected your issue and sent a quote for the repair.</p>
+                                   <p>You need to approve this quote before the artisan can proceed with the job.</p>
+                                   <div style="margin: 30px 0;">
+                                       <a href="${clientUrlTracking}" style="background-color: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Review and Approve Quote</a>
+                                   </div>
+                                   <p>— The Fixr Team</p>
+                                </div>`
                         });
                     }
                 }
+
+                // Notify Artisan if customer accepted quote
+                if (repairStatus === "accepted" && artisan?.auth?.email) {
+                    const clientUrlArtisan = `${process.env.CLIENT_URL || 'https://fixrr.vercel.app'}/artisan-dashboard`;
+                    await sendEmail({
+                        to: artisan.auth.email,
+                        subject: "Quote Approved! ✅",
+                        html: `
+                            <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; line-height: 1.6;">
+                               <h2 style="color: #166534;">Hello ${artisan.firstName},</h2>
+                               <p><strong>${customerName}</strong> has just approved your quote for their repair booking!</p>
+                               <p>You can now safely proceed with the work. Remember to click "Deliver" on your dashboard once the repair is fully completed to finalize the process.</p>
+                               <div style="margin: 30px 0;">
+                                   <a href="${clientUrlArtisan}" style="background-color: #166534; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Go to your Dashboard</a>
+                               </div>
+                               <p>— The Fixr Team</p>
+                            </div>`
+                    });
+                }
+
             } catch (mailErr) {
-                console.error("Error sending status notification email to customer", mailErr);
+                console.error("Error sending status notification email", mailErr);
             }
         }
 

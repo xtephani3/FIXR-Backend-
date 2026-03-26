@@ -25,7 +25,7 @@ const orderSchema = new mongoose.Schema({
     },
     repairStatus: {
         type: String,
-        enum: ["pending", "declined", "accepted", "delivered"],
+        enum: ["pending", "inspected", "declined", "accepted", "delivered"],
         default: "pending"
     },
     repairReport: {
